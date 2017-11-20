@@ -1,0 +1,7 @@
+[package]
+name = "rlox"
+version = "0.1.0"
+authors = ["Brian J. Tarricone <brian@tarricone.org>"]
+
+[dependencies]
+lazy_static = "0.2.10"

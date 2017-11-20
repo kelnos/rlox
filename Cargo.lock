@@ -1,0 +1,14 @@
+[[package]]
+name = "lazy_static"
+version = "0.2.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "rlox"
+version = "0.1.0"
+dependencies = [
+ "lazy_static 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[metadata]
+"checksum lazy_static 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)" = "236eb37a62591d4a41a89b7763d7de3e06ca02d5ab2815446a8bae5d2f8c2d57"
