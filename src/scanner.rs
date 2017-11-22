@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::iter::Peekable;
 use std::str::Chars;
-use token::Token;
+use token::{TokenType, Token};
 use value::Value;
 
 // unfortunately we can't store closure in a HashMap that's defined as
@@ -11,7 +11,7 @@ use value::Value;
 macro_rules! token_fn {
     ($name:ident, $token_type:ident) => (
         fn $name(line: u32) -> Token {
-            Token::$token_type(line)
+            Token::simple(TokenType::$token_type, line)
         }
     )
 }
@@ -60,12 +60,12 @@ lazy_static! {
     };
 }
 
-fn consume_next_if<'a>(iter: &mut Peekable<Chars>, next_is: char, success: Token, failure: Token) -> Token {
+fn consume_next_if<'a>(iter: &mut Peekable<Chars>, line: u32, next_is: char, success: TokenType, failure: TokenType) -> Token {
     if iter.peek() == Some(&next_is) {
         iter.next();
-        success
+        Token::simple(success, line)
     } else {
-        failure
+        Token::simple(failure, line)
     }
 }
 
@@ -81,15 +81,15 @@ fn consume_slash_or_comment(iter: &mut Peekable<Chars>, line: u32) -> (Token, u3
                 }
                 comment.push(c);
             }
-            (Token::Comment(comment, line), new_line)
+            (Token::with_lexeme(TokenType::Comment, comment, line), new_line)
         },
         Some(&'*') => {
             iter.next();
             let mut comment = String::from("/*");
             let new_line = consume_block_comment(&mut comment, iter, line);
-            (Token::Comment(comment, line), new_line)
+            (Token::with_lexeme(TokenType::Comment, comment, line), new_line)
         },
-        _ => (Token::Slash(line), line)
+        _ => (Token::simple(TokenType::Slash, line), line)
     }
 }
 
@@ -135,7 +135,7 @@ fn consume_string(iter: &mut Peekable<Chars>, line: u32) -> (Option<Token>, u32)
     }
     if iter.peek() != None {
         let literal = Value::Str(s[1..s.len()-1].to_string());
-        (Some(Token::String(s, literal, line)), new_line)
+        (Some(Token::with_literal(TokenType::Str, s, literal, line)), new_line)
     } else {
         (None, new_line)
     }
@@ -154,7 +154,7 @@ fn consume_number(iter: &mut Peekable<Chars>, first_char: char, line: u32) -> To
         iter.next();
     }
     let literal = Value::Number(n.parse().unwrap());
-    Token::Number(n, literal, line)
+    Token::with_literal(TokenType::Number, n, literal, line)
 }
 
 fn consume_identifier_or_keyword(iter: &mut Peekable<Chars>, first_char: char, line: u32) -> Token {
@@ -171,7 +171,7 @@ fn consume_identifier_or_keyword(iter: &mut Peekable<Chars>, first_char: char, l
     }
     match KEYWORDS.get(s.as_str()) {
         Some(f) => f(line),
-        None => Token::Identifier(s, line),
+        None => Token::with_lexeme(TokenType::Identifier, s, line),
     }
 }
 
@@ -182,25 +182,25 @@ pub fn scan(source: &String) -> Result<Vec<Token>, Box<Error>> {
 
     while let Some(c) = iter.next() {
         match c {
-            '(' => tokens.push(Token::LeftParen(line)),
-            ')' => tokens.push(Token::RightParen(line)),
-            '{' => tokens.push(Token::LeftBrace(line)),
-            '}' => tokens.push(Token::RightBrace(line)),
-            ',' => tokens.push(Token::Comma(line)),
-            '.' => tokens.push(Token::Dot(line)),
-            '-' => tokens.push(Token::Minus(line)),
-            '+' => tokens.push(Token::Plus(line)),
-            ';' => tokens.push(Token::Semicolon(line)),
+            '(' => tokens.push(Token::simple(TokenType::LeftParen, line)),
+            ')' => tokens.push(Token::simple(TokenType::RightParen, line)),
+            '{' => tokens.push(Token::simple(TokenType::LeftBrace, line)),
+            '}' => tokens.push(Token::simple(TokenType::RightBrace, line)),
+            ',' => tokens.push(Token::simple(TokenType::Comma, line)),
+            '.' => tokens.push(Token::simple(TokenType::Dot, line)),
+            '-' => tokens.push(Token::simple(TokenType::Minus, line)),
+            '+' => tokens.push(Token::simple(TokenType::Plus, line)),
+            ';' => tokens.push(Token::simple(TokenType::Semicolon, line)),
             '/' => {
                 let (token, new_line) = consume_slash_or_comment(&mut iter, line);
                 line = new_line;
                 tokens.push(token)
             },
-            '*' => tokens.push(Token::Star(line)),
-            '!' => tokens.push(consume_next_if(&mut iter, '=', Token::BangEqual(line), Token::Bang(line))),
-            '=' => tokens.push(consume_next_if(&mut iter, '=', Token::EqualEqual(line), Token::Equal(line))),
-            '>' => tokens.push(consume_next_if(&mut iter, '=', Token::GreaterEqual(line), Token::Greater(line))),
-            '<' => tokens.push(consume_next_if(&mut iter, '=', Token::LessEqual(line), Token::Less(line))),
+            '*' => tokens.push(Token::simple(TokenType::Star, line)),
+            '!' => tokens.push(consume_next_if(&mut iter, line, '=', TokenType::BangEqual, TokenType::Bang)),
+            '=' => tokens.push(consume_next_if(&mut iter, line, '=', TokenType::EqualEqual, TokenType::Equal)),
+            '>' => tokens.push(consume_next_if(&mut iter, line, '=', TokenType::GreaterEqual, TokenType::Greater)),
+            '<' => tokens.push(consume_next_if(&mut iter, line, '=', TokenType::LessEqual, TokenType::Less)),
             '"' => {
                 let (token, new_line) = consume_string(&mut iter, line);
                 line = new_line;
@@ -216,6 +216,6 @@ pub fn scan(source: &String) -> Result<Vec<Token>, Box<Error>> {
             _ => (),  // not sure what we should do here... just skip it?  print a warning?
         }
     }
-    tokens.push(Token::Eof(line));
+    tokens.push(Token::simple(TokenType::Eof, line));
     Ok(tokens)
 }
