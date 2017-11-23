@@ -2,7 +2,7 @@ use std::fmt;
 use value;
 use value::Value;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     // single-char
     LeftParen,
