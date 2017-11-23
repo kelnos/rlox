@@ -11,11 +11,13 @@ pub mod scanner;
 pub mod token;
 pub mod value;
 
+use expression::Expr;
+use parser::parse;
 use scanner::scan;
 
-pub fn run(source: &String) -> Result<(), Box<Error>> {
-    scan(source).map(|tokens| {
+pub fn run(source: &String) -> Result<Expr, Box<Error>> {
+    scan(source).and_then(|tokens| {
         println!("tokens: {:?}", tokens);
-        ()
+        parse(tokens)
     })
 }

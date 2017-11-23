@@ -41,8 +41,11 @@ fn main() {
     });
     println!("Running Lox source\n{}", source);
 
-    if let Err(e) = rlox::run(&source) {
-        eprintln!("Failed to run: {}", e);
-        process::exit(1);
+    match rlox::run(&source) {
+        Ok(result) => println!("Ran; result: {}", result),
+        Err(e) => {
+            eprintln!("Failed to run: {}", e);
+            process::exit(1);
+        },
     }
 }
