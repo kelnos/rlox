@@ -3,116 +3,154 @@ extern crate lazy_static;
 use std::fmt;
 use std::iter::Peekable;
 use std::error::Error;
-use std::slice::Iter;
+use std::vec::IntoIter;
 
 use expression::Expr;
 use token::TokenType::*;
 use token::{TokenType, Token};
 
-lazy_static! {
-    static ref INVALID_EOF: Token = {
-        Token::simple(Eof, 0)
-    };
-}
-
 #[derive(Debug)]
-pub struct ParseError<'a> {
+pub struct ParseError {
     expected: Vec<TokenType>,
-    found: Option<&'a Token>,
+    found: Token,
     description: String,
 }
 
-impl<'a> ParseError<'a> {
-    pub fn new(expected: &Vec<TokenType>, found: Option<&'a Token>) -> Box<ParseError<'a>> {
+impl ParseError {
+    pub fn new(expected: &Vec<TokenType>, found: Option<Token>) -> Box<ParseError> {
         let expected_strings: Vec<&'static str> = expected.iter().map(|tt| tt.as_str()).collect();
-        let line = found.map_or(0, |token| token.line);
-        let description = format!("ERR:{}:unexpected token {}; expected {}", line, found.unwrap_or(&INVALID_EOF), expected_strings.join(", "));
+        let token = found.unwrap_or(Token::simple(Eof, 0));
+        let description = format!("ERR:{}:unexpected token {}; expected {}", token.line, token.token_type, expected_strings.join(", "));
         Box::new(ParseError {
             expected: expected.to_vec(),
-            found,
+            found: token,
             description,
         })
     }
 
+    fn new_arr(expected: &[TokenType], found: Option<Token>) -> Box<ParseError> {
+        let mut v = Vec::new();
+        v.extend(expected.iter().cloned());
+        ParseError::new(&v, found)
+    }
+
     pub fn line(&self) -> u32 {
-        self.found.map_or(0, |token| token.line)
+        self.found.line
     }
 }
 
-impl<'a> fmt::Display for ParseError<'a> {
+impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.description())
     }
 }
 
-impl<'a> Error for ParseError<'a> {
+impl Error for ParseError {
     fn description(&self) -> &str {
         &self.description
     }
 }
 
-pub fn parse<'a>(tokens: &Vec<&'a Token>) -> Result<Expr<'a>, Box<Error + 'a>> {
-    let mut iter = tokens.iter().peekable();
+pub fn parse(tokens: Vec<Token>) -> Result<Expr, Box<Error>> {
+    let mut iter = tokens.into_iter().peekable();
     parse_expression(&mut iter)
 }
 
-fn consume<'a>(iter: &mut Peekable<Iter<&'a Token>>, matches: &[TokenType]) -> Option<&'a Token> {
-    if let Some(next) = iter.peek().map(|x| *x) {
+fn next_is(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> bool {
+    if let Some(next) = iter.peek() {
         for tt in matches.iter() {
             if *tt == next.token_type {
-                return iter.next().map(|x| *x);
+                return true
             }
         }
     }
-    None
+    false
 }
 
-fn parse_expression<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
+fn maybe_consume(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> Option<Token> {
+    if next_is(iter, matches) {
+        iter.next()
+    } else {
+        None
+    }
+}
+
+fn is_one_of(token: &Token, matches: &[TokenType]) -> bool {
+    for tt in matches.iter() {
+        if *tt == token.token_type {
+            return true
+        }
+    }
+    false
+}
+
+fn consume(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> Result<Token, Box<Error>> {
+    iter.next().map(|token| {
+        if is_one_of(&token, matches) {
+            Ok(token)
+        } else {
+            Err(ParseError::new_arr(matches, Some(token)) as Box<Error>)
+        }
+    }).unwrap_or(Err(ParseError::new_arr(matches, None) as Box<Error>))
+}
+
+fn parse_expression(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
     parse_equality(iter)
 }
 
-fn parse_binary<'a>(iter: &mut Peekable<Iter<&'a Token>>, matches: &[TokenType], parse_operand: fn(&mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>>) -> Result<Expr<'a>, Box<Error + 'a>> {
+fn parse_binary(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType], parse_operand: fn(&mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>>) -> Result<Expr, Box<Error>> {
     let mut expr = parse_operand(iter)?;
-    while let Some(operator) = consume(iter, matches) {
-        expr = parse_operand(iter).map(|right| Expr::binary(expr, &operator, right))?;
+    while let Some(operator) = maybe_consume(iter, matches) {
+        expr = parse_operand(iter).map(|right| Expr::binary(expr, operator, right))?;
     }
     Ok(expr)
 }
 
-fn parse_equality<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
+fn parse_equality(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
     parse_binary(iter, &[BangEqual, EqualEqual], parse_comparison)
 }
 
-fn parse_comparison<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
+fn parse_comparison(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
     parse_binary(iter, &[Greater, GreaterEqual, Less, LessEqual], parse_addition)
 }
 
-fn parse_addition<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
+fn parse_addition(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
     parse_binary(iter, &[Minus, Plus], parse_multiplication)
 }
 
-fn parse_multiplication<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
+fn parse_multiplication(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
     parse_binary(iter, &[Slash, Star], parse_unary)
 }
 
-fn parse_unary<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
-    match consume(iter, &[Bang, Minus]) {
-        Some(operator) => parse_unary(iter).map(|right| Expr::unary(&operator, right)),
+fn parse_unary(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
+    match maybe_consume(iter, &[Bang, Minus]) {
+        Some(operator) => parse_unary(iter).map(|right| Expr::unary(operator, right)),
         None => parse_primary(iter),
     }
 }
 
 lazy_static! {
     static ref EXPECT_PRIMARY: Vec<TokenType> = {
-        vec![Number, Str, True, False, Nil]
+        vec![Number, Str, True, False, Nil, LeftParen]
     };
 }
 
-fn parse_primary<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
-    iter.next().map(|token| {
-        match (&token.token_type, &token.literal) {
-            (tt, &Some(ref value)) if EXPECT_PRIMARY.contains(tt) => Ok(Expr::literal(value)),
-            _ => Err(ParseError::new(&*EXPECT_PRIMARY, Some(&token)) as Box<Error>)
+fn parse_primary(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
+    iter.next().map_or(Err(ParseError::new(&*EXPECT_PRIMARY, None) as Box<Error>), |t| Ok(t)).and_then(|token| {
+        if EXPECT_PRIMARY.contains(&token.token_type) {
+            match token.token_type {
+                LeftParen => {
+                    parse_expression(iter).and_then(|expr| {
+                        consume(iter, &[RightParen]).map(|_| Expr::grouping(expr))
+                    })
+                },
+                _ => match token.literal {
+                    Some(value) => Ok(Expr::literal(value)),
+                    None => Err(ParseError::new(&*EXPECT_PRIMARY, Some(token)) as Box<Error>),
+                },
+            }
+        } else {
+            Err(ParseError::new(&*EXPECT_PRIMARY, Some(token)) as Box<Error>)
         }
-    }).unwrap_or(Err(ParseError::new(&*EXPECT_PRIMARY, None) as Box<Error>))
+    })
 }
