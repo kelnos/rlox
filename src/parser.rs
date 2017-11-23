@@ -23,15 +23,15 @@ pub struct ParseError<'a> {
 }
 
 impl<'a> ParseError<'a> {
-    pub fn new(expected: &Vec<TokenType>, found: Option<&'a Token>) -> ParseError<'a> {
+    pub fn new(expected: &Vec<TokenType>, found: Option<&'a Token>) -> Box<ParseError<'a>> {
         let expected_strings: Vec<&'static str> = expected.iter().map(|tt| tt.as_str()).collect();
         let line = found.map_or(0, |token| token.line);
         let description = format!("ERR:{}:unexpected token {}; expected {}", line, found.unwrap_or(&INVALID_EOF), expected_strings.join(", "));
-        ParseError {
+        Box::new(ParseError {
             expected: expected.to_vec(),
             found,
             description,
-        }
+        })
     }
 
     pub fn line(&self) -> u32 {
@@ -51,7 +51,7 @@ impl<'a> Error for ParseError<'a> {
     }
 }
 
-pub fn parse<'a>(tokens: &Vec<&'a Token>) -> Result<Expr<'a>, ParseError<'a>> {
+pub fn parse<'a>(tokens: &Vec<&'a Token>) -> Result<Expr<'a>, Box<Error + 'a>> {
     let mut iter = tokens.iter().peekable();
     parse_expression(&mut iter)
 }
@@ -67,11 +67,11 @@ fn consume<'a>(iter: &mut Peekable<Iter<&'a Token>>, matches: &[TokenType]) -> O
     None
 }
 
-fn parse_expression<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, ParseError<'a>> {
+fn parse_expression<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
     parse_equality(iter)
 }
 
-fn parse_binary<'a>(iter: &mut Peekable<Iter<&'a Token>>, matches: &[TokenType], parse_operand: fn(&mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, ParseError<'a>>) -> Result<Expr<'a>, ParseError<'a>> {
+fn parse_binary<'a>(iter: &mut Peekable<Iter<&'a Token>>, matches: &[TokenType], parse_operand: fn(&mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>>) -> Result<Expr<'a>, Box<Error + 'a>> {
     let mut expr = parse_operand(iter)?;
     while let Some(operator) = consume(iter, matches) {
         expr = parse_operand(iter).map(|right| Expr::binary(expr, &operator, right))?;
@@ -79,23 +79,23 @@ fn parse_binary<'a>(iter: &mut Peekable<Iter<&'a Token>>, matches: &[TokenType],
     Ok(expr)
 }
 
-fn parse_equality<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, ParseError<'a>> {
+fn parse_equality<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
     parse_binary(iter, &[BangEqual, EqualEqual], parse_comparison)
 }
 
-fn parse_comparison<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, ParseError<'a>> {
+fn parse_comparison<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
     parse_binary(iter, &[Greater, GreaterEqual, Less, LessEqual], parse_addition)
 }
 
-fn parse_addition<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, ParseError<'a>> {
+fn parse_addition<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
     parse_binary(iter, &[Minus, Plus], parse_multiplication)
 }
 
-fn parse_multiplication<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, ParseError<'a>> {
+fn parse_multiplication<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
     parse_binary(iter, &[Slash, Star], parse_unary)
 }
 
-fn parse_unary<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, ParseError<'a>> {
+fn parse_unary<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
     match consume(iter, &[Bang, Minus]) {
         Some(operator) => parse_unary(iter).map(|right| Expr::unary(&operator, right)),
         None => parse_primary(iter),
@@ -108,11 +108,11 @@ lazy_static! {
     };
 }
 
-fn parse_primary<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, ParseError<'a>> {
+fn parse_primary<'a>(iter: &mut Peekable<Iter<&'a Token>>) -> Result<Expr<'a>, Box<Error + 'a>> {
     iter.next().map(|token| {
         match (&token.token_type, &token.literal) {
             (tt, &Some(ref value)) if EXPECT_PRIMARY.contains(tt) => Ok(Expr::literal(value)),
-            _ => Err(ParseError::new(&*EXPECT_PRIMARY, Some(&token)))
+            _ => Err(ParseError::new(&*EXPECT_PRIMARY, Some(&token)) as Box<Error>)
         }
-    }).unwrap_or(Err(ParseError::new(&*EXPECT_PRIMARY, None)))
+    }).unwrap_or(Err(ParseError::new(&*EXPECT_PRIMARY, None) as Box<Error>))
 }
