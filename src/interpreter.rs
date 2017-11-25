@@ -15,7 +15,8 @@ struct RuntimeError {
 }
 
 impl RuntimeError {
-    pub fn new(location: Token, description: String) -> Box<RuntimeError> {
+    pub fn new(location: Token, message: String) -> Box<RuntimeError> {
+        let description = format!("ERR:{}:{}", location.line, message);
         Box::new(RuntimeError {
             location,
             description,

@@ -19,10 +19,10 @@ use value::Value;
 
 pub fn run(source: &String) -> Result<Value, Box<Error>> {
     scan(source).and_then(|tokens| {
-        println!("tokens: {:?}", tokens);
+        //println!("tokens: {:?}", tokens);
         parse(tokens)
     }).and_then(|expr| {
-        println!("expr: {}", expr);
+        //println!("expr: {}", expr);
         interpret(expr)
     })
 }
