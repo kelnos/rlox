@@ -1,7 +1,8 @@
 use std::error::Error;
 use std::fmt;
 
-use expression::*;
+use expression::Expr;
+use statement::Stmt;
 use token::{TokenType, Token};
 use value::Value;
 
@@ -36,9 +37,34 @@ impl Error for RuntimeError {
     }
 }
 
-pub fn interpret(expr: Expr) -> Result<Value, Box<Error>> {
+pub fn interpret(statements: Vec<Stmt>) -> Result<(), Box<Error>> {
     let mut state = State {};
-    evaluate_expression(&mut state, expr)
+    let mut iter = statements.into_iter();
+    loop {
+        match iter.next() {
+            Some(stmt) => execute_stmt(&mut state, stmt)?,
+            None => break,
+        }
+    }
+    Ok(())
+}
+
+fn execute_stmt(state: &mut State, stmt: Stmt) -> Result<(), Box<Error>> {
+    match stmt {
+        Stmt::Print { expression } => execute_print_stmt(state, *expression),
+        Stmt::Expression { expression } => execute_expression_stmt(state, *expression),
+    }
+}
+
+fn execute_print_stmt(state: &mut State, expr: Expr) -> Result<(), Box<Error>> {
+    evaluate_expression(state, expr).map(|value| {
+        println!("{}", value.to_string());
+        ()
+    })
+}
+
+fn execute_expression_stmt(state: &mut State, expr: Expr) -> Result<(), Box<Error>> {
+    evaluate_expression(state, expr).map(|_| ())
 }
 
 fn evaluate_expression(state: &mut State, expr: Expr) -> Result<Value, Box<Error>> {

@@ -42,7 +42,7 @@ fn main() {
             println!("Running Lox source\n{}", source);
 
             match rlox::run(&source) {
-                Ok(result) => println!("{}", result),
+                Ok(_) => (),
                 Err(e) => {
                     eprintln!("{}", e);
                     process::exit(1);
@@ -56,7 +56,7 @@ fn main() {
             for line in stdin.lock().lines() {
                 match line {
                     Ok(source) => match rlox::run(&source) {
-                        Ok(result) => println!("{}", result),
+                        Ok(_) => (),
                         Err(e) => eprintln!("{}", e),
                     },
                     Err(e) => {

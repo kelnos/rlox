@@ -6,6 +6,7 @@ use std::error::Error;
 use std::vec::IntoIter;
 
 use expression::Expr;
+use statement::Stmt;
 use token::TokenType::*;
 use token::{TokenType, Token};
 
@@ -51,10 +52,44 @@ impl Error for ParseError {
     }
 }
 
-pub fn parse(tokens: Vec<Token>) -> Result<Expr, Box<Error>> {
+pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, Box<Error>> {
+    let mut stmts = Vec::new();
     let mut iter = tokens.into_iter().peekable();
-    parse_expression(&mut iter)
+    loop {
+        if next_is(&mut iter, &[TokenType::Eof]) {
+            iter.next();
+            break;
+        } else {
+            match statement(&mut iter) {
+                Err(e) => return Err(e),
+                Ok(stmt) => stmts.push(stmt),
+            }
+        }
+    }
+    Ok(stmts)
 }
+
+fn statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
+    if next_is(iter, &[TokenType::Print]) {
+        print_statement(iter)
+    } else {
+        expression_statement(iter)
+    }
+}
+
+fn print_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
+    iter.next();
+    let expr = parse_expression(iter)?;
+    consume(iter, &[TokenType::Semicolon])?;
+    Ok(Stmt::print(expr))
+}
+
+fn expression_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
+    let expr = parse_expression(iter)?;
+    consume(iter, &[TokenType::Semicolon])?;
+    Ok(Stmt::expression(expr))
+}
+
 
 fn next_is(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> bool {
     if let Some(next) = iter.peek() {

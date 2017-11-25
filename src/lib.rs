@@ -9,15 +9,15 @@ pub mod interpreter;
 pub mod function;
 pub mod parser;
 pub mod scanner;
+pub mod statement;
 pub mod token;
 pub mod value;
 
 use interpreter::interpret;
 use parser::parse;
 use scanner::scan;
-use value::Value;
 
-pub fn run(source: &String) -> Result<Value, Box<Error>> {
+pub fn run(source: &String) -> Result<(), Box<Error>> {
     scan(source).and_then(|tokens| {
         //println!("tokens: {:?}", tokens);
         parse(tokens)
