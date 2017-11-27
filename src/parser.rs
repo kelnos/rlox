@@ -52,21 +52,47 @@ impl Error for ParseError {
     }
 }
 
-pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, Box<Error>> {
+pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, Vec<Box<Error>>> {
     let mut stmts = Vec::new();
+    let mut errors = Vec::new();
+
     let mut iter = tokens.into_iter().peekable();
     loop {
         if next_is(&mut iter, &[TokenType::Eof]) {
             iter.next();
             break;
+        } else if iter.peek().is_none() {
+            break;
         } else {
             match declaration(&mut iter) {
-                Err(e) => return Err(e),
                 Ok(stmt) => stmts.push(stmt),
+                Err(e) => {
+                    errors.push(e);
+                    synchronize(&mut iter)
+                },
             }
         }
     }
-    Ok(stmts)
+
+    if errors.is_empty() {
+        Ok(stmts)
+    } else {
+        Err(errors)
+    }
+}
+
+fn synchronize(iter: &mut Peekable<IntoIter<Token>>) {
+    use token::TokenType::*;
+
+    while let Some(token) = iter.next() {
+        if token.token_type == Semicolon || token.token_type == Eof {
+            break;
+        }
+
+        if next_is(iter, &[Class, Fun, Var, For, If, While, Print, Return, Eof]) {
+            break;
+        }
+    }
 }
 
 fn declaration(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {

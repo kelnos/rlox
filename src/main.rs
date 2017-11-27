@@ -47,8 +47,10 @@ fn main() {
 
             match rlox::run(&mut environment, &source) {
                 Ok(_) => (),
-                Err(e) => {
-                    eprintln!("{}", e);
+                Err(errors) => {
+                    for error in errors.iter() {
+                        eprintln!("{}", error);
+                    }
                     process::exit(1);
                 },
             }
@@ -61,7 +63,9 @@ fn main() {
                 match line {
                     Ok(source) => match rlox::run(&mut environment, &source) {
                         Ok(_) => (),
-                        Err(e) => eprintln!("{}", e),
+                        Err(errors) => for error in errors.iter() {
+                            eprintln!("{}", error);
+                        },
                     },
                     Err(e) => {
                         eprintln!("Failed to read from stdin: {}", e);

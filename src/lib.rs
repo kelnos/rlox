@@ -19,12 +19,12 @@ use interpreter::interpret;
 use parser::parse;
 use scanner::scan;
 
-pub fn run(environment: &mut Environment, source: &String) -> Result<(), Box<Error>> {
-    scan(source).and_then(|tokens| {
+pub fn run(environment: &mut Environment, source: &String) -> Result<(), Vec<Box<Error>>> {
+    scan(source).map_err(|error| vec![error]).and_then(|tokens| {
         //println!("tokens: {:?}", tokens);
         parse(tokens)
     }).and_then(|expr| {
         //println!("expr: {}", expr);
-        interpret(environment, expr)
+        interpret(environment, expr).map_err(|error| vec![error])
     })
 }
