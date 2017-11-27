@@ -179,7 +179,23 @@ fn consume(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> Resul
 }
 
 fn parse_expression(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
-    parse_equality(iter)
+    parse_assignment(iter)
+}
+
+fn parse_assignment(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
+    parse_equality(iter).and_then(|expr| {
+        match maybe_consume(iter, &[TokenType::Equal]) {
+            Some(equal) => {
+                parse_assignment(iter).and_then(|value| {
+                    match expr {
+                        Expr::Variable { ref name } => Ok(Expr::assign((*name).clone(), value)),
+                        _ => Err(ParseError::new_arr(&[TokenType::Identifier], Some(equal))),
+                    }
+                })
+            }
+            None => Ok(expr),
+        }
+    })
 }
 
 fn parse_binary(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType], parse_operand: fn(&mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>>) -> Result<Expr, Box<Error>> {

@@ -18,6 +18,15 @@ impl Environment {
         self.values.insert(name, value);
     }
 
+    pub fn assign(&mut self, name: String, value: Value) -> bool {
+        if !self.values.contains_key(&name) {
+            false
+        } else {
+            self.values.insert(name, value);
+            true
+        }
+    }
+
     pub fn get(&self, name: &Token) -> Option<&Value> {
         self.values.get(&name.lexeme)
     }

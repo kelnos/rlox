@@ -90,6 +90,7 @@ fn execute_var_stmt(state: &mut State, name: Token, initializer: Option<Expr>) -
 
 fn evaluate_expression(state: &mut State, expr: Expr) -> Result<Value, Box<Error>> {
     match expr {
+        Expr::Assign { name, value } => evaluate_assign(state, name, *value),
         Expr::Binary { left, operator, right } => evaluate_binary(state, *left, operator, *right),
         Expr::Grouping { expression } => evaluate_grouping(state, *expression),
         Expr::Literal { value } => evaluate_literal(state, value),
@@ -102,6 +103,17 @@ fn evaluate_expression(state: &mut State, expr: Expr) -> Result<Value, Box<Error
             }
         },
     }
+}
+
+fn evaluate_assign(state: &mut State, name: Token, value: Expr) -> Result<Value, Box<Error>> {
+    evaluate_expression(state, value).and_then(|expr_value| {
+        if !state.environment.assign(name.lexeme.clone(), expr_value.clone()) {
+            let message = format!("Undefined variable {}", name.lexeme);
+            Err(RuntimeError::new(name, message))
+        } else {
+            Ok(expr_value)
+        }
+    })
 }
 
 fn evaluate_binary(state: &mut State, left: Expr, operator: Token, right: Expr) -> Result<Value, Box<Error>> {

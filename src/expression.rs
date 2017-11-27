@@ -4,6 +4,7 @@ use token::Token;
 use value::Value;
 
 pub enum Expr {
+    Assign { name: Token, value: Box<Expr> },
     Binary { left: Box<Expr>, operator: Token, right: Box<Expr> },
     Grouping { expression: Box<Expr> },
     Literal { value: Value },
@@ -12,6 +13,13 @@ pub enum Expr {
 }
 
 impl Expr {
+    pub fn assign(name: Token, value: Expr) -> Expr {
+        Expr::Assign {
+            name,
+            value: Box::new(value),
+        }
+    }
+
     pub fn binary(left: Expr, operator: Token, right: Expr) -> Expr {
         Expr::Binary {
             left: Box::new(left),
@@ -49,6 +57,7 @@ impl Expr {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            &Expr::Assign { ref name, ref value } => write!(f, "{} = {}", name.lexeme, value),
             &Expr::Binary { ref left, ref operator, ref right } => write!(f, "{} {} {}", left, operator, right),
             &Expr::Grouping { ref expression } => write!(f, "({})", expression),
             &Expr::Literal { ref value } => write!(f, "{}", value),
