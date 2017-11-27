@@ -1,7 +1,7 @@
 use callable::Callable;
 use value::Value;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct LoxFunction {
     name: String,
     arity: u32,

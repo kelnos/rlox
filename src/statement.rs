@@ -1,10 +1,12 @@
 use std::fmt;
 
 use expression::Expr;
+use token::Token;
 
 pub enum Stmt {
     Expression { expression: Box<Expr> },
     Print { expression: Box<Expr> },
+    Var { name: Token, initializer: Option<Expr> },
 }
 
 impl Stmt {
@@ -19,6 +21,13 @@ impl Stmt {
             expression: Box::new(expr),
         }
     }
+
+    pub fn var(name: Token, initializer: Option<Expr>) -> Stmt {
+        Stmt::Var {
+            name,
+            initializer,
+        }
+    }
 }
 
 impl fmt::Display for Stmt {
@@ -27,6 +36,7 @@ impl fmt::Display for Stmt {
         match *self {
             Expression { .. } => write!(f, "[expression]"),
             Print { .. } => write!(f, "[print]"),
+            Var { ref name, .. } => write!(f, "[decl {}]", name.lexeme),
         }
     }
 }

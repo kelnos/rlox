@@ -1,7 +1,7 @@
 use std::fmt;
 use callable::LoxCallable;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Value {
     Nil,
     Str(String),

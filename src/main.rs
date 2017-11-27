@@ -6,6 +6,8 @@ use std::io;
 use std::io::prelude::*;
 use std::process;
 
+use rlox::environment::Environment;
+
 struct Arguments {
     source_filename: Option<String>,
 }
@@ -31,6 +33,8 @@ fn main() {
         process::exit(1);
     });
 
+    let mut environment = Environment::new();
+
     match arguments.source_filename {
         Some(source_filename) => {
             println!("Running Lox file {}", source_filename);
@@ -41,7 +45,7 @@ fn main() {
             });
             println!("Running Lox source\n{}", source);
 
-            match rlox::run(&source) {
+            match rlox::run(&mut environment, &source) {
                 Ok(_) => (),
                 Err(e) => {
                     eprintln!("{}", e);
@@ -55,7 +59,7 @@ fn main() {
             io::stdout().flush().unwrap();
             for line in stdin.lock().lines() {
                 match line {
-                    Ok(source) => match rlox::run(&source) {
+                    Ok(source) => match rlox::run(&mut environment, &source) {
                         Ok(_) => (),
                         Err(e) => eprintln!("{}", e),
                     },

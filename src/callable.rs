@@ -1,7 +1,7 @@
 use value::Value;
 use function::LoxFunction;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum LoxCallable {
     Function(LoxFunction),
 }

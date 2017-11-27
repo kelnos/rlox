@@ -8,6 +8,7 @@ pub enum Expr {
     Grouping { expression: Box<Expr> },
     Literal { value: Value },
     Unary { operator: Token, right: Box<Expr> },
+    Variable { name: Token },
 }
 
 impl Expr {
@@ -37,6 +38,12 @@ impl Expr {
             right: Box::new(right),
         }
     }
+
+    pub fn variable(name: Token) -> Expr {
+        Expr::Variable {
+            name,
+        }
+    }
 }
 
 impl fmt::Display for Expr {
@@ -46,6 +53,7 @@ impl fmt::Display for Expr {
             &Expr::Grouping { ref expression } => write!(f, "({})", expression),
             &Expr::Literal { ref value } => write!(f, "{}", value),
             &Expr::Unary { ref operator, ref right } => write!(f, "{} {}", operator, right),
+            &Expr::Variable { ref name } => write!(f, "{}", name),
         }
     }
 }

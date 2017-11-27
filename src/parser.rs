@@ -60,13 +60,36 @@ pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, Box<Error>> {
             iter.next();
             break;
         } else {
-            match statement(&mut iter) {
+            match declaration(&mut iter) {
                 Err(e) => return Err(e),
                 Ok(stmt) => stmts.push(stmt),
             }
         }
     }
     Ok(stmts)
+}
+
+fn declaration(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
+    if next_is(iter, &[TokenType::Var]) {
+        var_declaration(iter)
+    } else {
+        statement(iter)
+    }
+}
+
+fn var_declaration(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
+    consume(iter, &[TokenType::Var]).and_then(|_| {
+        match iter.next() {
+            Some(name) => match name.token_type {
+                TokenType::Identifier => Ok(name),
+                _ => Err(ParseError::new_arr(&[TokenType::Identifier], Some(name))),
+            },
+            None => Err(ParseError::new_arr(&[TokenType::Identifier], None)),
+        }
+    }).and_then(|name| match maybe_consume(iter, &[TokenType::Equal]) {
+        Some(_) => parse_expression(iter).map(|initializer| Stmt::var(name, Some(initializer))),
+        None => Ok(Stmt::var(name, None)),
+    }).and_then(|stmt| consume(iter, &[TokenType::Semicolon]).map(|_| stmt))
 }
 
 fn statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
@@ -166,7 +189,7 @@ fn parse_unary(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>>
 
 lazy_static! {
     static ref EXPECT_PRIMARY: Vec<TokenType> = {
-        vec![Number, Str, True, False, Nil, LeftParen]
+        vec![Number, Str, True, False, Nil, LeftParen, Identifier]
     };
 }
 
@@ -174,11 +197,10 @@ fn parse_primary(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error
     iter.next().map_or(Err(ParseError::new(&*EXPECT_PRIMARY, None) as Box<Error>), |t| Ok(t)).and_then(|token| {
         if EXPECT_PRIMARY.contains(&token.token_type) {
             match token.token_type {
-                LeftParen => {
-                    parse_expression(iter).and_then(|expr| {
-                        consume(iter, &[RightParen]).map(|_| Expr::grouping(expr))
-                    })
-                },
+                LeftParen => parse_expression(iter).and_then(|expr| {
+                    consume(iter, &[RightParen]).map(|_| Expr::grouping(expr))
+                }),
+                Identifier => Ok(Expr::variable(token)),
                 _ => match token.literal {
                     Some(value) => Ok(Expr::literal(value)),
                     None => Err(ParseError::new(&*EXPECT_PRIMARY, Some(token)) as Box<Error>),
