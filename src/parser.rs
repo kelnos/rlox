@@ -121,6 +121,8 @@ fn var_declaration(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Err
 fn statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
     if next_is(iter, &[TokenType::Print]) {
         print_statement(iter)
+    } else if next_is(iter, &[TokenType::LeftBrace]) {
+        block_statement(iter).map(|stmts| Stmt::block(stmts))
     } else {
         expression_statement(iter)
     }
@@ -131,6 +133,19 @@ fn print_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Err
     let expr = parse_expression(iter)?;
     consume(iter, &[TokenType::Semicolon])?;
     Ok(Stmt::print(expr))
+}
+
+fn block_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Vec<Stmt>, Box<Error>> {
+    iter.next();
+    let mut statements = Vec::new();
+    while !next_is(iter, &[TokenType::RightBrace]) {
+        match declaration(iter) {
+            Ok(stmt) => statements.push(stmt),
+            Err(error) => return Err(error),
+        }
+    }
+    consume(iter, &[TokenType::RightBrace]).expect("BUG: expected RightBrace");
+    Ok(statements)
 }
 
 fn expression_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {

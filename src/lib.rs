@@ -1,7 +1,9 @@
 #[macro_use]
 extern crate lazy_static;
 
+use std::cell::RefCell;
 use std::error::Error;
+use std::rc::Rc;
 
 pub mod callable;
 pub mod environment;
@@ -19,7 +21,7 @@ use interpreter::interpret;
 use parser::parse;
 use scanner::scan;
 
-pub fn run(environment: &mut Environment, source: &String) -> Result<(), Vec<Box<Error>>> {
+pub fn run(environment: Rc<RefCell<Environment>>, source: &String) -> Result<(), Vec<Box<Error>>> {
     scan(source).map_err(|error| vec![error]).and_then(|tokens| {
         //println!("tokens: {:?}", tokens);
         parse(tokens)

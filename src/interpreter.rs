@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::error::Error;
 use std::fmt;
+use std::rc::Rc;
 
 use environment::Environment;
 use expression::Expr;
@@ -7,12 +9,12 @@ use statement::Stmt;
 use token::{TokenType, Token};
 use value::Value;
 
-struct State<'a> {
-    environment: &'a mut Environment,
+struct State {
+    environment: Rc<RefCell<Environment>>,
 }
 
-impl<'a> State<'a> {
-    fn new(environment: &'a mut Environment) -> State {
+impl State {
+    fn new(environment: Rc<RefCell<Environment>>) -> State {
         State {
             environment,
         }
@@ -47,8 +49,8 @@ impl Error for RuntimeError {
     }
 }
 
-pub fn interpret(environment: &mut Environment, statements: Vec<Stmt>) -> Result<(), Box<Error>> {
-    let mut state = State::new(environment);
+pub fn interpret(environment: Rc<RefCell<Environment>>, statements: Vec<Stmt>) -> Result<(), Box<Error>> {
+    let mut state = State::new(Rc::clone(&environment));
     let mut iter = statements.into_iter();
     loop {
         match iter.next() {
@@ -61,10 +63,23 @@ pub fn interpret(environment: &mut Environment, statements: Vec<Stmt>) -> Result
 
 fn execute_stmt(state: &mut State, stmt: Stmt) -> Result<(), Box<Error>> {
     match stmt {
+        Stmt::Block { statements } => execute_block(state, statements),
         Stmt::Print { expression } => execute_print_stmt(state, *expression),
         Stmt::Expression { expression } => execute_expression_stmt(state, *expression),
         Stmt::Var { name, initializer } => execute_var_stmt(state, name, initializer),
     }
+}
+
+fn execute_block(state: &mut State, statements: Vec<Stmt>) -> Result<(), Box<Error>> {
+    let block_environment = Environment::new_enclosing(Some(Rc::clone(&state.environment)));
+    let mut block_state = State::new(Rc::new(RefCell::new(block_environment)));
+    for statement in statements.into_iter() {
+        match execute_stmt(&mut block_state, statement) {
+            Ok(_) => (),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
 }
 
 fn execute_print_stmt(state: &mut State, expr: Expr) -> Result<(), Box<Error>> {
@@ -83,7 +98,7 @@ fn execute_var_stmt(state: &mut State, name: Token, initializer: Option<Expr>) -
         Some(init) => evaluate_expression(state, init),
         None => Ok(Value::Nil),
     }.map(|init_value| {
-        state.environment.define(name.lexeme.clone(), init_value);
+        state.environment.borrow_mut().define(name.lexeme.clone(), init_value);
         ()
     })
 }
@@ -95,8 +110,8 @@ fn evaluate_expression(state: &mut State, expr: Expr) -> Result<Value, Box<Error
         Expr::Grouping { expression } => evaluate_grouping(state, *expression),
         Expr::Literal { value } => evaluate_literal(state, value),
         Expr::Unary { operator, right } => evaluate_unary(state, operator, *right),
-        Expr::Variable { name } => match state.environment.get(&name) {
-            Some(value) => Ok((*value).clone()),
+        Expr::Variable { name } => match state.environment.borrow().get(&name) {
+            Some(value) => Ok(value.clone()),
             None => {
                 let message = format!("Undefined variable {}", name.lexeme);
                 Err(RuntimeError::new(name, message))
@@ -107,7 +122,7 @@ fn evaluate_expression(state: &mut State, expr: Expr) -> Result<Value, Box<Error
 
 fn evaluate_assign(state: &mut State, name: Token, value: Expr) -> Result<Value, Box<Error>> {
     evaluate_expression(state, value).and_then(|expr_value| {
-        if !state.environment.assign(name.lexeme.clone(), expr_value.clone()) {
+        if !state.environment.borrow_mut().assign(name.lexeme.clone(), expr_value.clone()) {
             let message = format!("Undefined variable {}", name.lexeme);
             Err(RuntimeError::new(name, message))
         } else {

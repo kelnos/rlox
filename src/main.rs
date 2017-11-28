@@ -1,10 +1,12 @@
 extern crate rlox;
 
+use std::cell::RefCell;
 use std::env;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::process;
+use std::rc::Rc;
 
 use rlox::environment::Environment;
 
@@ -33,7 +35,7 @@ fn main() {
         process::exit(1);
     });
 
-    let mut environment = Environment::new();
+    let environment = Rc::new(RefCell::new(Environment::new()));
 
     match arguments.source_filename {
         Some(source_filename) => {
@@ -45,7 +47,7 @@ fn main() {
             });
             println!("Running Lox source\n{}", source);
 
-            match rlox::run(&mut environment, &source) {
+            match rlox::run(environment, &source) {
                 Ok(_) => (),
                 Err(errors) => {
                     for error in errors.iter() {
@@ -61,7 +63,7 @@ fn main() {
             io::stdout().flush().unwrap();
             for line in stdin.lock().lines() {
                 match line {
-                    Ok(source) => match rlox::run(&mut environment, &source) {
+                    Ok(source) => match rlox::run(Rc::clone(&environment), &source) {
                         Ok(_) => (),
                         Err(errors) => for error in errors.iter() {
                             eprintln!("{}", error);
