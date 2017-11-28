@@ -119,13 +119,31 @@ fn var_declaration(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Err
 }
 
 fn statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
-    if next_is(iter, &[TokenType::Print]) {
+    if next_is(iter, &[TokenType::If]) {
+        if_statement(iter)
+    } else if next_is(iter, &[TokenType::Print]) {
         print_statement(iter)
     } else if next_is(iter, &[TokenType::LeftBrace]) {
         block_statement(iter).map(|stmts| Stmt::block(stmts))
     } else {
         expression_statement(iter)
     }
+}
+
+fn if_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
+    iter.next();
+    consume(iter, &[TokenType::LeftParen])
+        .and_then(|_| parse_expression(iter))
+        .and_then(|expr| {
+            consume(iter, &[TokenType::RightParen])
+                .and_then(|_| statement(iter))
+                .and_then(|then_branch| {
+                    match maybe_consume(iter, &[TokenType::Else]) {
+                        Some(_) => statement(iter).map(|eb| Some(eb)),
+                        None => Ok(None),
+                    }.map(|else_branch| Stmt::if_(expr, then_branch, else_branch))
+                })
+        })
 }
 
 fn print_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {

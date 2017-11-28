@@ -64,8 +64,9 @@ pub fn interpret(environment: Rc<RefCell<Environment>>, statements: Vec<Stmt>) -
 fn execute_stmt(state: &mut State, stmt: Stmt) -> Result<(), Box<Error>> {
     match stmt {
         Stmt::Block { statements } => execute_block(state, statements),
-        Stmt::Print { expression } => execute_print_stmt(state, *expression),
         Stmt::Expression { expression } => execute_expression_stmt(state, *expression),
+        Stmt::If { expression, then_branch, else_branch } => execute_if_stmt(state, *expression, *then_branch, else_branch.map(|eb| *eb)),
+        Stmt::Print { expression } => execute_print_stmt(state, *expression),
         Stmt::Var { name, initializer } => execute_var_stmt(state, name, initializer),
     }
 }
@@ -82,15 +83,30 @@ fn execute_block(state: &mut State, statements: Vec<Stmt>) -> Result<(), Box<Err
     Ok(())
 }
 
+fn execute_expression_stmt(state: &mut State, expr: Expr) -> Result<(), Box<Error>> {
+    evaluate_expression(state, expr).map(|_| ())
+}
+
+fn execute_if_stmt(state: &mut State, expr: Expr, then_branch: Stmt, else_branch: Option<Stmt>) -> Result<(), Box<Error>> {
+    match evaluate_expression(state, expr) {
+        Ok(value) => 
+            if is_truthy(&value) {
+                execute_stmt(state, then_branch)
+            } else {
+                match else_branch {
+                    Some(eb) => execute_stmt(state, eb),
+                    None => Ok(()),
+                }
+            },
+        Err(error) => Err(error), 
+    }
+}
+
 fn execute_print_stmt(state: &mut State, expr: Expr) -> Result<(), Box<Error>> {
     evaluate_expression(state, expr).map(|value| {
         println!("{}", value.to_string());
         ()
     })
-}
-
-fn execute_expression_stmt(state: &mut State, expr: Expr) -> Result<(), Box<Error>> {
-    evaluate_expression(state, expr).map(|_| ())
 }
 
 fn execute_var_stmt(state: &mut State, name: Token, initializer: Option<Expr>) -> Result<(), Box<Error>> {

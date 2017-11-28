@@ -6,6 +6,7 @@ use token::Token;
 pub enum Stmt {
     Block { statements: Vec<Stmt> },
     Expression { expression: Box<Expr> },
+    If { expression: Box<Expr>, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
     Print { expression: Box<Expr> },
     Var { name: Token, initializer: Option<Expr> },
 }
@@ -20,6 +21,14 @@ impl Stmt {
     pub fn expression(expr: Expr) -> Stmt {
         Stmt::Expression {
             expression: Box::new(expr),
+        }
+    }
+
+    pub fn if_(expr: Expr, then_branch: Stmt, else_branch: Option<Stmt>) -> Stmt {
+        Stmt::If {
+            expression: Box::new(expr),
+            then_branch: Box::new(then_branch),
+            else_branch: else_branch.map(|eb| Box::new(eb)),
         }
     }
 
@@ -43,6 +52,7 @@ impl fmt::Display for Stmt {
         match *self {
             Block { .. } => write!(f, "[block]"),
             Expression { .. } => write!(f, "[expression]"),
+            If { .. } => write!(f, "[if-then-else]"),
             Print { .. } => write!(f, "[print]"),
             Var { ref name, .. } => write!(f, "[decl {}]", name.lexeme),
         }
