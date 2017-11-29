@@ -125,6 +125,7 @@ fn evaluate_expression(state: &mut State, expr: Expr) -> Result<Value, Box<Error
         Expr::Binary { left, operator, right } => evaluate_binary(state, *left, operator, *right),
         Expr::Grouping { expression } => evaluate_grouping(state, *expression),
         Expr::Literal { value } => evaluate_literal(state, value),
+        Expr::Logical { left, operator, right } => evaluate_logical(state, *left, operator, *right),
         Expr::Unary { operator, right } => evaluate_unary(state, operator, *right),
         Expr::Variable { name } => match state.environment.borrow().get(&name) {
             Some(value) => Ok(value.clone()),
@@ -215,6 +216,16 @@ fn evaluate_grouping(state: &mut State, expression: Expr) -> Result<Value, Box<E
 
 fn evaluate_literal(_state: &mut State, value: Value) -> Result<Value, Box<Error>> {
     Ok(value)
+}
+
+fn evaluate_logical(state: &mut State, left: Expr, operator: Token, right: Expr) -> Result<Value, Box<Error>> {
+    let left_value = evaluate_expression(state, left)?;
+    let is_left_truthy = is_truthy(&left_value);
+    match operator.token_type {
+        TokenType::Or if is_left_truthy => Ok(left_value),
+        TokenType::And if !is_left_truthy => Ok(left_value),
+        _ => evaluate_expression(state, right),
+    }
 }
 
 fn evaluate_unary(state: &mut State, operator: Token, right: Expr) -> Result<Value, Box<Error>> {

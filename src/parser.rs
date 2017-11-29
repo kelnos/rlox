@@ -177,7 +177,7 @@ fn parse_expression(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Er
 }
 
 fn parse_assignment(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
-    parse_equality(iter).and_then(|expr| {
+    parse_or(iter).and_then(|expr| {
         match maybe_consume(iter, &[TokenType::Equal]) {
             Some(equal) => {
                 parse_assignment(iter).and_then(|value| {
@@ -192,28 +192,38 @@ fn parse_assignment(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Er
     })
 }
 
-fn parse_binary(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType], parse_operand: fn(&mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>>) -> Result<Expr, Box<Error>> {
+fn parse_binary(iter: &mut Peekable<IntoIter<Token>>,
+                matches: &[TokenType], parse_operand: fn(&mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>>,
+                expr_builder: fn(Expr, Token, Expr) -> Expr) -> Result<Expr, Box<Error>> {
     let mut expr = parse_operand(iter)?;
     while let Some(operator) = maybe_consume(iter, matches) {
-        expr = parse_operand(iter).map(|right| Expr::binary(expr, operator, right))?;
+        expr = parse_operand(iter).map(|right| expr_builder(expr, operator, right))?;
     }
     Ok(expr)
 }
 
+fn parse_or(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
+    parse_binary(iter, &[Or], parse_and, Expr::logical)
+}
+
+fn parse_and(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
+    parse_binary(iter, &[And], parse_equality, Expr::logical)
+}
+
 fn parse_equality(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
-    parse_binary(iter, &[BangEqual, EqualEqual], parse_comparison)
+    parse_binary(iter, &[BangEqual, EqualEqual], parse_comparison, Expr::binary)
 }
 
 fn parse_comparison(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
-    parse_binary(iter, &[Greater, GreaterEqual, Less, LessEqual], parse_addition)
+    parse_binary(iter, &[Greater, GreaterEqual, Less, LessEqual], parse_addition, Expr::binary)
 }
 
 fn parse_addition(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
-    parse_binary(iter, &[Minus, Plus], parse_multiplication)
+    parse_binary(iter, &[Minus, Plus], parse_multiplication, Expr::binary)
 }
 
 fn parse_multiplication(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
-    parse_binary(iter, &[Slash, Star], parse_unary)
+    parse_binary(iter, &[Slash, Star], parse_unary, Expr::binary)
 }
 
 fn parse_unary(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {

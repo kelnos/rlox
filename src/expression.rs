@@ -8,6 +8,7 @@ pub enum Expr {
     Binary { left: Box<Expr>, operator: Token, right: Box<Expr> },
     Grouping { expression: Box<Expr> },
     Literal { value: Value },
+    Logical { left: Box<Expr>, operator: Token, right: Box<Expr> },
     Unary { operator: Token, right: Box<Expr> },
     Variable { name: Token },
 }
@@ -40,6 +41,14 @@ impl Expr {
         }
     }
 
+    pub fn logical(left: Expr, operator: Token, right: Expr) -> Expr {
+        Expr::Logical {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        }
+    }
+
     pub fn unary(operator: Token, right: Expr) -> Expr {
         Expr::Unary {
             operator,
@@ -61,6 +70,7 @@ impl fmt::Display for Expr {
             &Expr::Binary { ref left, ref operator, ref right } => write!(f, "{} {} {}", left, operator, right),
             &Expr::Grouping { ref expression } => write!(f, "({})", expression),
             &Expr::Literal { ref value } => write!(f, "{}", value),
+            &Expr::Logical { ref left, ref operator, ref right } => write!(f, "{} {} {}", left, operator, right),
             &Expr::Unary { ref operator, ref right } => write!(f, "{} {}", operator, right),
             &Expr::Variable { ref name } => write!(f, "{}", name),
         }
