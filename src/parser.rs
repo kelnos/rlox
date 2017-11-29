@@ -10,6 +10,12 @@ use statement::Stmt;
 use token::TokenType::*;
 use token::{TokenType, Token};
 
+lazy_static! {
+    static ref EXPECT_PRIMARY: Vec<TokenType> = {
+        vec![Number, Str, True, False, Nil, LeftParen, Identifier]
+    };
+}
+
 #[derive(Debug)]
 pub struct ParseError {
     expected: Vec<TokenType>,
@@ -104,18 +110,14 @@ fn declaration(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>>
 }
 
 fn var_declaration(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
-    consume(iter, &[TokenType::Var]).and_then(|_| {
-        match iter.next() {
-            Some(name) => match name.token_type {
-                TokenType::Identifier => Ok(name),
-                _ => Err(ParseError::new_arr(&[TokenType::Identifier], Some(name))),
-            },
-            None => Err(ParseError::new_arr(&[TokenType::Identifier], None)),
-        }
-    }).and_then(|name| match maybe_consume(iter, &[TokenType::Equal]) {
-        Some(_) => parse_expression(iter).map(|initializer| Stmt::var(name, Some(initializer))),
-        None => Ok(Stmt::var(name, None)),
-    }).and_then(|stmt| consume(iter, &[TokenType::Semicolon]).map(|_| stmt))
+    consume(iter, &[TokenType::Var])?;
+    let name = consume(iter, &[TokenType::Identifier])?;
+    let initializer = match maybe_consume(iter, &[TokenType::Equal]) {
+        Some(_) => parse_expression(iter).map(|initializer| Some(initializer)),
+        None => Ok(None),
+    }?;
+    consume(iter, &[TokenType::Semicolon])?;
+    Ok(Stmt::var(name, initializer))
 }
 
 fn statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
@@ -132,18 +134,15 @@ fn statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
 
 fn if_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
     iter.next();
-    consume(iter, &[TokenType::LeftParen])
-        .and_then(|_| parse_expression(iter))
-        .and_then(|expr| {
-            consume(iter, &[TokenType::RightParen])
-                .and_then(|_| statement(iter))
-                .and_then(|then_branch| {
-                    match maybe_consume(iter, &[TokenType::Else]) {
-                        Some(_) => statement(iter).map(|eb| Some(eb)),
-                        None => Ok(None),
-                    }.map(|else_branch| Stmt::if_(expr, then_branch, else_branch))
-                })
-        })
+    consume(iter, &[TokenType::LeftParen])?;
+    let expr = parse_expression(iter)?;
+    consume(iter, &[TokenType::RightParen])?;
+    let then_branch = statement(iter)?;
+    let else_branch = match maybe_consume(iter, &[TokenType::Else]) {
+        Some(_) => statement(iter).map(|eb| Some(eb)),
+        None => Ok(None),
+    }?;
+    Ok(Stmt::if_(expr, then_branch, else_branch))
 }
 
 fn print_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
@@ -172,44 +171,6 @@ fn expression_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Bo
     Ok(Stmt::expression(expr))
 }
 
-
-fn next_is(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> bool {
-    if let Some(next) = iter.peek() {
-        for tt in matches.iter() {
-            if *tt == next.token_type {
-                return true
-            }
-        }
-    }
-    false
-}
-
-fn maybe_consume(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> Option<Token> {
-    if next_is(iter, matches) {
-        iter.next()
-    } else {
-        None
-    }
-}
-
-fn is_one_of(token: &Token, matches: &[TokenType]) -> bool {
-    for tt in matches.iter() {
-        if *tt == token.token_type {
-            return true
-        }
-    }
-    false
-}
-
-fn consume(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> Result<Token, Box<Error>> {
-    iter.next().map(|token| {
-        if is_one_of(&token, matches) {
-            Ok(token)
-        } else {
-            Err(ParseError::new_arr(matches, Some(token)) as Box<Error>)
-        }
-    }).unwrap_or(Err(ParseError::new_arr(matches, None) as Box<Error>))
-}
 
 fn parse_expression(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
     parse_assignment(iter)
@@ -262,14 +223,8 @@ fn parse_unary(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>>
     }
 }
 
-lazy_static! {
-    static ref EXPECT_PRIMARY: Vec<TokenType> = {
-        vec![Number, Str, True, False, Nil, LeftParen, Identifier]
-    };
-}
-
 fn parse_primary(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error>> {
-    iter.next().map_or(Err(ParseError::new(&*EXPECT_PRIMARY, None) as Box<Error>), |t| Ok(t)).and_then(|token| {
+    iter.next().ok_or(ParseError::new(&*EXPECT_PRIMARY, None) as Box<Error>).and_then(|token| {
         if EXPECT_PRIMARY.contains(&token.token_type) {
             match token.token_type {
                 LeftParen => parse_expression(iter).and_then(|expr| {
@@ -278,11 +233,50 @@ fn parse_primary(iter: &mut Peekable<IntoIter<Token>>) -> Result<Expr, Box<Error
                 Identifier => Ok(Expr::variable(token)),
                 _ => match token.literal {
                     Some(value) => Ok(Expr::literal(value)),
-                    None => Err(ParseError::new(&*EXPECT_PRIMARY, Some(token)) as Box<Error>),
+                    None => Err(ParseError::new(&*EXPECT_PRIMARY, Some(token))),
                 },
             }
         } else {
-            Err(ParseError::new(&*EXPECT_PRIMARY, Some(token)) as Box<Error>)
+            Err(ParseError::new(&*EXPECT_PRIMARY, Some(token)))
         }
     })
+}
+
+
+fn next_is(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> bool {
+    if let Some(next) = iter.peek() {
+        for tt in matches.iter() {
+            if *tt == next.token_type {
+                return true
+            }
+        }
+    }
+    false
+}
+
+fn maybe_consume(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> Option<Token> {
+    if next_is(iter, matches) {
+        iter.next()
+    } else {
+        None
+    }
+}
+
+fn is_one_of(token: &Token, matches: &[TokenType]) -> bool {
+    for tt in matches.iter() {
+        if *tt == token.token_type {
+            return true
+        }
+    }
+    false
+}
+
+fn consume(iter: &mut Peekable<IntoIter<Token>>, matches: &[TokenType]) -> Result<Token, Box<Error>> {
+    iter.next().map(|token| {
+        if is_one_of(&token, matches) {
+            Ok(token)
+        } else {
+            Err(ParseError::new_arr(matches, Some(token)) as Box<Error>)
+        }
+    }).unwrap_or(Err(ParseError::new_arr(matches, None) as Box<Error>))
 }

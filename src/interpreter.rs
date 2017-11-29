@@ -64,9 +64,9 @@ pub fn interpret(environment: Rc<RefCell<Environment>>, statements: Vec<Stmt>) -
 fn execute_stmt(state: &mut State, stmt: Stmt) -> Result<(), Box<Error>> {
     match stmt {
         Stmt::Block { statements } => execute_block(state, statements),
-        Stmt::Expression { expression } => execute_expression_stmt(state, *expression),
-        Stmt::If { expression, then_branch, else_branch } => execute_if_stmt(state, *expression, *then_branch, else_branch.map(|eb| *eb)),
-        Stmt::Print { expression } => execute_print_stmt(state, *expression),
+        Stmt::Expression { expression } => execute_expression_stmt(state, expression),
+        Stmt::If { expression, then_branch, else_branch } => execute_if_stmt(state, expression, *then_branch, else_branch.map(|eb| *eb)),
+        Stmt::Print { expression } => execute_print_stmt(state, expression),
         Stmt::Var { name, initializer } => execute_var_stmt(state, name, initializer),
     }
 }
