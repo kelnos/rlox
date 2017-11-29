@@ -6,7 +6,7 @@ use token::Token;
 use value::Value;
 
 pub struct Environment {
-    values: HashMap<String, Value>,
+    values: HashMap<String, Rc<Value>>,
     enclosing: Option<Rc<RefCell<Environment>>>,
 }
 
@@ -22,11 +22,11 @@ impl Environment {
         }
     }
 
-    pub fn define(&mut self, name: String, value: Value) {
+    pub fn define(&mut self, name: String, value: Rc<Value>) {
         self.values.insert(name, value);
     }
 
-    pub fn assign(&mut self, name: String, value: Value) -> bool {
+    pub fn assign(&mut self, name: String, value: Rc<Value>) -> bool {
         if !self.values.contains_key(&name) {
             match self.enclosing {
                 Some(ref mut enc) => enc.borrow_mut().assign(name, value),
@@ -38,7 +38,7 @@ impl Environment {
         }
     }
 
-    pub fn get(&self, name: &Token) -> Option<Value> {
+    pub fn get(&self, name: &Token) -> Option<Rc<Value>> {
         match self.values.get(&name.lexeme) {
             Some(v) => Some(v.clone()),
             None => match self.enclosing {

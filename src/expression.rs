@@ -1,4 +1,5 @@
 use std::fmt;
+use std::rc::Rc;
 
 use token::Token;
 use value::Value;
@@ -8,7 +9,7 @@ pub enum Expr {
     Assign { name: Token, value: Box<Expr> },
     Binary { left: Box<Expr>, operator: Token, right: Box<Expr> },
     Grouping { expression: Box<Expr> },
-    Literal { value: Value },
+    Literal { value: Rc<Value> },
     Logical { left: Box<Expr>, operator: Token, right: Box<Expr> },
     Unary { operator: Token, right: Box<Expr> },
     Variable { name: Token },
@@ -38,7 +39,7 @@ impl Expr {
 
     pub fn literal(value: Value) -> Expr {
         Expr::Literal {
-            value,
+            value: Rc::new(value),
         }
     }
 
