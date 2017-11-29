@@ -3,6 +3,7 @@ use std::fmt;
 use token::Token;
 use value::Value;
 
+#[derive(Clone)]
 pub enum Expr {
     Assign { name: Token, value: Box<Expr> },
     Binary { left: Box<Expr>, operator: Token, right: Box<Expr> },

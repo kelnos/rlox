@@ -3,9 +3,11 @@ use std::fmt;
 use expression::Expr;
 use token::Token;
 
+#[derive(Clone)]
 pub enum Stmt {
     Block { statements: Vec<Stmt> },
     Expression { expression: Expr },
+    For { initializer: Option<Box<Stmt>>, condition: Expr, increment: Option<Box<Stmt>>, body: Box<Stmt> },
     If { expression: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
     Print { expression: Expr },
     Var { name: Token, initializer: Option<Expr> },
@@ -44,6 +46,15 @@ impl Stmt {
             initializer,
         }
     }
+
+    pub fn for_(initializer: Option<Stmt>, condition: Expr, increment: Option<Stmt>, body: Stmt) -> Stmt {
+        Stmt::For {
+            initializer: initializer.map(|i| Box::new(i)),
+            condition,
+            increment: increment.map(|i| Box::new(i)),
+            body: Box::new(body),
+        }
+    }
 }
 
 impl fmt::Display for Stmt {
@@ -52,6 +63,7 @@ impl fmt::Display for Stmt {
         match *self {
             Block { .. } => write!(f, "[block]"),
             Expression { .. } => write!(f, "[expression]"),
+            For { .. } => write!(f, "[for/while-loop]"),
             If { .. } => write!(f, "[if-then-else]"),
             Print { .. } => write!(f, "[print]"),
             Var { ref name, .. } => write!(f, "[decl {}]", name.lexeme),

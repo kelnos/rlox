@@ -9,6 +9,7 @@ use expression::Expr;
 use statement::Stmt;
 use token::TokenType::*;
 use token::{TokenType, Token};
+use value;
 
 lazy_static! {
     static ref EXPECT_PRIMARY: Vec<TokenType> = {
@@ -125,6 +126,10 @@ fn statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
         if_statement(iter)
     } else if next_is(iter, &[TokenType::Print]) {
         print_statement(iter)
+    } else if next_is(iter, &[TokenType::While]) {
+        while_statement(iter)
+    } else if next_is(iter, &[TokenType::For]) {
+        for_statement(iter)
     } else if next_is(iter, &[TokenType::LeftBrace]) {
         block_statement(iter).map(|stmts| Stmt::block(stmts))
     } else {
@@ -150,6 +155,38 @@ fn print_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Err
     let expr = parse_expression(iter)?;
     consume(iter, &[TokenType::Semicolon])?;
     Ok(Stmt::print(expr))
+}
+
+fn while_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
+    iter.next();
+    consume(iter, &[TokenType::LeftParen])?;
+    let expression = parse_expression(iter)?;
+    consume(iter, &[TokenType::RightParen])?;
+    let body = statement(iter)?;
+    Ok(Stmt::for_(None, expression, None, body))
+}
+
+fn for_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Stmt, Box<Error>> {
+    iter.next();
+    consume(iter, &[TokenType::LeftParen])?;
+    let initializer = match maybe_consume(iter, &[TokenType::Semicolon]) {
+        Some(_) => Ok(None),
+        None => if next_is(iter, &[TokenType::Var]) {
+            var_declaration(iter)
+        } else {
+            expression_statement(iter)
+        }.map(|i| Some(i)),
+    }?;
+    let condition = match maybe_consume(iter, &[TokenType::Semicolon]) {
+        Some(_) => Ok(Expr::literal(value::TrueValue)),
+        None => parse_expression(iter).and_then(|expr| consume(iter, &[TokenType::Semicolon]).map(|_| expr)),
+    }?;
+    let increment = match maybe_consume(iter, &[TokenType::RightParen]) {
+        Some(_) => Ok(None),
+        None => parse_expression(iter).and_then(|expr| consume(iter, &[TokenType::RightParen]).map(|_| Some(Stmt::expression(expr)))),
+    }?;
+    let body = statement(iter)?;
+    Ok(Stmt::block(vec![Stmt::for_(initializer, condition, increment, body)]))
 }
 
 fn block_statement(iter: &mut Peekable<IntoIter<Token>>) -> Result<Vec<Stmt>, Box<Error>> {

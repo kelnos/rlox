@@ -65,6 +65,7 @@ fn execute_stmt(state: &mut State, stmt: Stmt) -> Result<(), Box<Error>> {
     match stmt {
         Stmt::Block { statements } => execute_block(state, statements),
         Stmt::Expression { expression } => execute_expression_stmt(state, expression),
+        Stmt::For { initializer, condition, increment, body } => execute_for_stmt(state, initializer.map(|i| *i), condition, increment.map(|i| *i), *body),
         Stmt::If { expression, then_branch, else_branch } => execute_if_stmt(state, expression, *then_branch, else_branch.map(|eb| *eb)),
         Stmt::Print { expression } => execute_print_stmt(state, expression),
         Stmt::Var { name, initializer } => execute_var_stmt(state, name, initializer),
@@ -85,6 +86,26 @@ fn execute_block(state: &mut State, statements: Vec<Stmt>) -> Result<(), Box<Err
 
 fn execute_expression_stmt(state: &mut State, expr: Expr) -> Result<(), Box<Error>> {
     evaluate_expression(state, expr).map(|_| ())
+}
+
+fn execute_for_stmt(state: &mut State, initializer: Option<Stmt>, condition: Expr, increment: Option<Stmt>, body: Stmt) -> Result<(), Box<Error>> {
+    match initializer {
+        Some(i) => execute_stmt(state, i),
+        None => Ok(()),
+    }?;
+    loop {
+        let cond_value = evaluate_expression(state, condition.clone())?;
+        if is_truthy(&cond_value) {
+            execute_stmt(state, body.clone())?;
+            match &increment {
+                &Some(ref i) => execute_stmt(state, i.clone()),
+                &None => Ok(()),
+            }?;
+        } else {
+            break;
+        }
+    }
+    Ok(())
 }
 
 fn execute_if_stmt(state: &mut State, expr: Expr, then_branch: Stmt, else_branch: Option<Stmt>) -> Result<(), Box<Error>> {
